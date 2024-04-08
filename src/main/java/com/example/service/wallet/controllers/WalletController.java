@@ -2,6 +2,7 @@ package com.example.service.wallet.controllers;
 
 import com.example.service.wallet.dto.WalletDTO;
 import com.example.service.wallet.exception.WalletNotFoundException;
+import com.example.service.wallet.model.Wallet;
 import com.example.service.wallet.service.WalletService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +20,7 @@ public class WalletController {
     private final WalletService walletService;
 
     @PostMapping
-    public ResponseEntity<?> createWallet(@RequestBody @Valid WalletDTO walletDto, BindingResult result) {
+    public ResponseEntity<Object> createWallet(@RequestBody @Valid WalletDTO walletDto, BindingResult result) {
         if (result.hasErrors()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(result.getAllErrors());
         }
@@ -28,13 +29,13 @@ public class WalletController {
     }
 
     @GetMapping
-    public ResponseEntity<?> getWallets() {
+    public ResponseEntity<Iterable<Wallet>> getWallets() {
 
-        return ResponseEntity.ok(walletService.getWallets());
+        return ResponseEntity.status(HttpStatus.OK).body(walletService.getWallets());
     }
 
     @GetMapping("/{walletId}")
-    public ResponseEntity<?> getBalanceOfWallet(@PathVariable Long walletId) {
+    public ResponseEntity<Object> getBalanceOfWallet(@PathVariable Long walletId) {
 
         try {
             BigDecimal balance = walletService.getWalletBalance(walletId);
@@ -45,7 +46,7 @@ public class WalletController {
         }
     }
     @DeleteMapping("/{walletId}")
-    public ResponseEntity<?> deleteWallet(@PathVariable Long walletId) {
+    public ResponseEntity<Object> deleteWallet(@PathVariable Long walletId) {
 
         try {
             walletService.deleteWallet(walletId);

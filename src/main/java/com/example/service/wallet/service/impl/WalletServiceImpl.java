@@ -9,8 +9,10 @@ import com.example.service.wallet.model.OperationType;
 import com.example.service.wallet.model.Wallet;
 import com.example.service.wallet.repository.WalletRepository;
 import com.example.service.wallet.service.WalletService;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
@@ -19,6 +21,8 @@ import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -32,22 +36,37 @@ public class WalletServiceImpl implements WalletService {
     public Wallet processWalletOperation(WalletDTO walletDto) {
         log.info("Processing wallet operation: {}", walletDto.getWalletId());
 
+        AtomicBoolean updated = new AtomicBoolean(false);
         Wallet wallet = createWallet(walletDto);
+        Wallet existingWallet = applyLockToFindById(wallet.getId());
 
-        Wallet existingWallet = walletRepository.findById(wallet.getId())
-                .map(w -> {
-                    try {
-                        Optional<BigDecimal> newAmount = calculateNewAmount(w, wallet);
-                        newAmount.ifPresent(w::setAmount);
-                    } catch (InsufficientBalanceException | TransactionException e) {
-                        log.error("Failed to process wallet operation", e);
-                        e.printStackTrace();
-                    }
-                    return w;
-                })
-                .orElseGet(() -> wallet);
+        if (existingWallet != null) {
+            try{
+                Optional<BigDecimal> newAmount = calculateNewAmount(existingWallet, wallet);
+                newAmount.ifPresent(amount -> {
+                    existingWallet.setAmount(amount);
+                    walletRepository.save(existingWallet);
+                    updated.set(true);
+                });
+                return existingWallet;
+            } catch (InsufficientBalanceException | TransactionException e) {
+                log.error("Failed to process wallet operation", e);
+                e.printStackTrace();
+            }
+        } else {
+            walletRepository.save(wallet);
+        }
 
-        return walletRepository.save(existingWallet);
+        if (updated.get()) {
+            return existingWallet;
+        } else {
+            return wallet;
+        }
+    }
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    private Wallet applyLockToFindById(UUID walletId) {
+        return walletRepository.findById(walletId).orElse(null);
     }
 
     private Optional<BigDecimal> calculateNewAmount(Wallet existingWallet, Wallet wallet) throws InsufficientBalanceException, TransactionException {
@@ -93,7 +112,7 @@ public class WalletServiceImpl implements WalletService {
     }
 
     @Override
-    public Object getWallets() {
+    public Iterable<Wallet> getWallets() {
         log.info("Getting all wallets");
 
         return walletRepository.findAll();

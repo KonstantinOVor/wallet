@@ -1,8 +1,6 @@
 package com.example.service.wallet.model;
 
-
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Min;
 import lombok.*;
 import java.math.BigDecimal;
 import java.util.UUID;
